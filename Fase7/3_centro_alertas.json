@@ -1,0 +1,332 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Centro de alertas en tiempo real. Combina alertas reactivas de Fase 5 (vía MQTT re-publicado a InfluxDB) y predicciones de Fase 6 (cuando se integre).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {
+      "type": "row",
+      "id": 300,
+      "title": "🚨 Resumen de alertas — últimas 24 horas",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 1,
+      "title": "Total CRITICAL",
+      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 1},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+          "query": "from(bucket: \"agro_iot_alertas\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"alertas\" and r.nivel == \"critical\")\n  |> count()\n  |> group()\n  |> sum()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short", "decimals": 0,
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "orange", "value": 1},
+            {"color": "red", "value": 3}
+          ]},
+          "color": {"mode": "thresholds"}
+        }
+      },
+      "options": {
+        "reduceOptions": {"values": false, "calcs": ["sum"]},
+        "colorMode": "background", "graphMode": "none", "textMode": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 2,
+      "title": "Total WARNING",
+      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 1},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+          "query": "from(bucket: \"agro_iot_alertas\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"alertas\" and r.nivel == \"warning\")\n  |> count()\n  |> group()\n  |> sum()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short", "decimals": 0,
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 1},
+            {"color": "orange", "value": 5}
+          ]},
+          "color": {"mode": "thresholds"}
+        }
+      },
+      "options": {
+        "reduceOptions": {"values": false, "calcs": ["sum"]},
+        "colorMode": "background", "graphMode": "none"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "Parcelas afectadas",
+      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 1},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+          "query": "from(bucket: \"agro_iot_alertas\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"alertas\")\n  |> group(columns: [\"parcela\"])\n  |> distinct(column: \"parcela\")\n  |> group()\n  |> count()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short", "decimals": 0,
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 1},
+            {"color": "red", "value": 3}
+          ]},
+          "color": {"mode": "thresholds"}
+        }
+      },
+      "options": {
+        "reduceOptions": {"values": false, "calcs": ["lastNotNull"]},
+        "colorMode": "background", "graphMode": "none"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 4,
+      "title": "Última alerta",
+      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 1},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+          "query": "from(bucket: \"agro_iot_alertas\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"alertas\")\n  |> group()\n  |> last(column: \"_time\")"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "dateTimeFromNow", "color": {"mode": "fixed", "fixedColor": "purple"}}
+      },
+      "options": {
+        "reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": "/^_time$/"},
+        "colorMode": "background", "graphMode": "none"
+      }
+    },
+    {
+      "type": "row",
+      "id": 301,
+      "title": "📋 Tabla de alertas activas",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 6},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "table",
+      "id": 5,
+      "title": "Alertas — últimas 24 horas (ordenadas por severidad y fecha)",
+      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 7},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+          "query": "from(bucket: \"agro_iot_alertas\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"alertas\")\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> keep(columns: [\"_time\", \"nivel\", \"parcela\", \"cultivo\", \"ubicacion\", \"variable\", \"valor\", \"unidad\", \"mensaje\", \"accion\"])\n  |> sort(columns: [\"_time\"], desc: true)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "filterable": true,
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "nivel"},
+            "properties": [
+              {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+              {"id": "mappings", "value": [
+                {"options": {"critical": {"color": "red", "index": 0}}, "type": "value"},
+                {"options": {"warning":  {"color": "orange", "index": 1}}, "type": "value"},
+                {"options": {"info":     {"color": "blue", "index": 2}}, "type": "value"}
+              ]},
+              {"id": "custom.width", "value": 90}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "_time"},
+            "properties": [
+              {"id": "displayName", "value": "Fecha"},
+              {"id": "unit", "value": "dateTimeAsIso"},
+              {"id": "custom.width", "value": 170}
+            ]
+          },
+          {"matcher": {"id": "byName", "options": "parcela"},
+           "properties": [{"id": "displayName", "value": "Parcela"}, {"id": "custom.width", "value": 100}]},
+          {"matcher": {"id": "byName", "options": "cultivo"},
+           "properties": [{"id": "displayName", "value": "Cultivo"}, {"id": "custom.width", "value": 80}]},
+          {"matcher": {"id": "byName", "options": "ubicacion"},
+           "properties": [{"id": "displayName", "value": "Ubicación"}, {"id": "custom.width", "value": 140}]},
+          {"matcher": {"id": "byName", "options": "variable"},
+           "properties": [{"id": "displayName", "value": "Variable"}, {"id": "custom.width", "value": 170}]},
+          {"matcher": {"id": "byName", "options": "valor"},
+           "properties": [{"id": "displayName", "value": "Valor"}, {"id": "decimals", "value": 2},
+                           {"id": "custom.width", "value": 80}]},
+          {"matcher": {"id": "byName", "options": "unidad"},
+           "properties": [{"id": "displayName", "value": "Un."}, {"id": "custom.width", "value": 60}]},
+          {"matcher": {"id": "byName", "options": "mensaje"},
+           "properties": [{"id": "displayName", "value": "Descripción"}]},
+          {"matcher": {"id": "byName", "options": "accion"},
+           "properties": [{"id": "displayName", "value": "Acción recomendada"}]}
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {"show": true, "reducer": ["count"]}
+      }
+    },
+    {
+      "type": "row",
+      "id": 302,
+      "title": "📊 Análisis temporal de alertas",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 19},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 6,
+      "title": "Alertas por hora (últimas 24 h)",
+      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+          "query": "from(bucket: \"agro_iot_alertas\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"alertas\")\n  |> aggregateWindow(every: 1h, fn: count, createEmpty: true)\n  |> group(columns: [\"nivel\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"drawStyle": "bars", "lineWidth": 1, "fillOpacity": 80, "stacking": {"mode": "normal"}},
+          "color": {"mode": "palette-classic"}
+        },
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "critical"},
+           "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]},
+          {"matcher": {"id": "byName", "options": "warning"},
+           "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]},
+          {"matcher": {"id": "byName", "options": "info"},
+           "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]}
+        ]
+      },
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"showLegend": true, "displayMode": "list", "placement": "bottom"}
+      }
+    },
+    {
+      "type": "piechart",
+      "id": 7,
+      "title": "Distribución por parcela (últimas 24 h)",
+      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+          "query": "from(bucket: \"agro_iot_alertas\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"alertas\")\n  |> group(columns: [\"parcela\"])\n  |> count()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "short", "color": {"mode": "palette-classic"}}
+      },
+      "options": {
+        "reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""},
+        "pieType": "donut",
+        "tooltip": {"mode": "single"},
+        "legend": {"showLegend": true, "displayMode": "table", "placement": "right",
+                   "values": ["value", "percent"]}
+      }
+    },
+    {
+      "type": "row",
+      "id": 303,
+      "title": "🤖 Predicciones de Fase 6 (cuando el modelo ML esté en línea)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 28},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "table",
+      "id": 8,
+      "title": "Probabilidad de alerta crítica en próximas 48 h (Modelo B Fase 6)",
+      "description": "Lee de bucket 'agro_iot_predicciones' (poblado por el script de inferencia del modelo joblib)",
+      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 29},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+          "query": "from(bucket: \"agro_iot_predicciones\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"prediccion_modelo_B\")\n  |> filter(fn: (r) => r._field == \"prob_alerta_critica_48h\")\n  |> group(columns: [\"parcela\", \"cultivo\", \"ubicacion\"])\n  |> last()\n  |> keep(columns: [\"_time\", \"parcela\", \"cultivo\", \"ubicacion\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"align": "center", "filterable": true}
+        },
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "_value"},
+           "properties": [
+             {"id": "displayName", "value": "P(alerta 48h)"},
+             {"id": "unit", "value": "percentunit"},
+             {"id": "custom.cellOptions", "value": {"type": "gauge", "mode": "gradient"}},
+             {"id": "min", "value": 0}, {"id": "max", "value": 1},
+             {"id": "thresholds", "value": {"mode": "absolute", "steps": [
+               {"color": "green", "value": null},
+               {"color": "yellow", "value": 0.3},
+               {"color": "orange", "value": 0.5},
+               {"color": "red", "value": 0.7}]}}
+           ]},
+          {"matcher": {"id": "byName", "options": "_time"},
+           "properties": [{"id": "displayName", "value": "Predicción del"}, {"id": "unit", "value": "dateTimeAsIso"}]}
+        ]
+      },
+      "options": {"showHeader": true, "cellHeight": "md"}
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["agro-icesi", "alertas", "predicciones"],
+  "templating": {"list": []},
+  "time": {"from": "now-24h", "to": "now"},
+  "timezone": "America/Bogota",
+  "title": "🚨 Agro ICESI — Centro de alertas",
+  "uid": "agro-alertas",
+  "version": 1
+}

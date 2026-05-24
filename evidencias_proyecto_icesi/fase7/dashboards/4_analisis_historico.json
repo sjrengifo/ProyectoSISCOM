@@ -1,0 +1,250 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Explorador retrospectivo. Compara parcelas, identifica patrones estacionales y valida la calibración de los modelos predictivos de Fase 6.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {
+      "type": "row",
+      "id": 400,
+      "title": "📊 Comparativa entre parcelas — rango seleccionado",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 1,
+      "title": "T° media diaria — todas las parcelas (filtradas)",
+      "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 1},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+          "query": "from(bucket: \"agro_iot_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_data\")\n  |> filter(fn: (r) => r.variable == \"temperatura_aire\")\n  |> filter(fn: (r) => contains(value: r.parcela, set: ${parcela:json}))\n  |> aggregateWindow(every: 1d, fn: mean, createEmpty: false)\n  |> group(columns: [\"parcela\", \"ubicacion\", \"cultivo\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 5,
+                     "showPoints": "never"},
+          "color": {"mode": "palette-classic"}
+        }
+      },
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom",
+                   "calcs": ["min", "max", "mean", "stdDev"]}
+      }
+    },
+    {
+      "type": "row",
+      "id": 401,
+      "title": "🌡️ Patrones estacionales",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 11},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "heatmap",
+      "id": 2,
+      "title": "Heatmap T° media por hora del día y día del año",
+      "description": "Identifica patrones diurnos y estacionales. Útil para definir ventanas de riego óptimas.",
+      "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 12},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+          "query": "from(bucket: \"agro_iot_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_data\" and r.variable == \"temperatura_aire\")\n  |> filter(fn: (r) => contains(value: r.parcela, set: ${parcela:json}))\n  |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)\n  |> group()"
+        }
+      ],
+      "options": {
+        "calculate": true,
+        "calculation": {"yBuckets": {"mode": "size", "value": "1"}},
+        "color": {"mode": "scheme", "scheme": "RdYlGn", "reverse": true,
+                  "scale": "linear", "exponent": 0.5, "steps": 64},
+        "filterValues": {"le": 1e-9},
+        "rowsFrame": {"layout": "auto"},
+        "cellGap": 1,
+        "cellValues": {"unit": "celsius", "decimals": 1},
+        "yAxis": {"axisPlacement": "left", "reverse": false, "unit": "celsius", "decimals": 0},
+        "tooltip": {"mode": "single", "yHistogram": true},
+        "legend": {"show": true},
+        "exemplars": {"color": "rgba(255,0,255,0.7)"}
+      },
+      "fieldConfig": {"defaults": {"custom": {}}, "overrides": []}
+    },
+    {
+      "type": "heatmap",
+      "id": 3,
+      "title": "Heatmap VPD (kPa) por mes y parcela",
+      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 12},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+          "query": "from(bucket: \"agro_iot_indicadores\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"indicadores\" and r.indicador == \"vpd\")\n  |> filter(fn: (r) => contains(value: r.parcela, set: ${parcela:json}))\n  |> aggregateWindow(every: 1d, fn: mean, createEmpty: false)\n  |> group()"
+        }
+      ],
+      "options": {
+        "calculate": true,
+        "color": {"mode": "scheme", "scheme": "Oranges", "scale": "linear", "steps": 64},
+        "cellGap": 1,
+        "cellValues": {"unit": "pressurekpa", "decimals": 2},
+        "yAxis": {"axisPlacement": "left", "unit": "pressurekpa"},
+        "tooltip": {"mode": "single"},
+        "legend": {"show": true}
+      }
+    },
+    {
+      "type": "row",
+      "id": 402,
+      "title": "💧 Balance hídrico estacional",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 22},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "barchart",
+      "id": 4,
+      "title": "Precipitación mensual acumulada por parcela",
+      "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 23},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+          "query": "from(bucket: \"agro_iot_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_data\" and r.variable == \"precipitacion\")\n  |> filter(fn: (r) => contains(value: r.parcela, set: ${parcela:json}))\n  |> aggregateWindow(every: 1mo, fn: sum, createEmpty: true)\n  |> group(columns: [\"parcela\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthmm",
+          "custom": {"lineWidth": 1, "fillOpacity": 80, "stacking": {"mode": "none"}},
+          "color": {"mode": "palette-classic"}
+        }
+      },
+      "options": {
+        "orientation": "auto",
+        "barWidth": 0.6,
+        "groupWidth": 0.7,
+        "stacking": "none",
+        "showValue": "never",
+        "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom",
+                   "calcs": ["sum", "mean"]},
+        "tooltip": {"mode": "multi"}
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 5,
+      "title": "ETo Hargreaves diaria — comparativa de zonas",
+      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 23},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+          "query": "from(bucket: \"agro_iot_indicadores\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"indicadores\" and r.indicador == \"eto_hargreaves\")\n  |> filter(fn: (r) => contains(value: r.parcela, set: ${parcela:json}))\n  |> aggregateWindow(every: 1d, fn: mean, createEmpty: false)\n  |> group(columns: [\"parcela\", \"cultivo\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthmm",
+          "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 10,
+                     "thresholdsStyle": {"mode": "line"}},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "red", "value": 6}
+          ]},
+          "color": {"mode": "palette-classic"}
+        }
+      },
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom",
+                   "calcs": ["mean", "max"]}
+      }
+    },
+    {
+      "type": "row",
+      "id": 403,
+      "title": "🌾 Acumulado de Grados-Día (GDD) — fenología",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 6,
+      "title": "GDD acumulado por parcela",
+      "description": "Caña T_base=18°C, Arroz T_base=10°C. Acumulado permite estimar etapa fenológica.",
+      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 33},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+          "query": "from(bucket: \"agro_iot_indicadores\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"indicadores\" and r.indicador == \"gdd_instantaneo\")\n  |> filter(fn: (r) => contains(value: r.parcela, set: ${parcela:json}))\n  |> aggregateWindow(every: 1d, fn: sum, createEmpty: false)\n  |> cumulativeSum()\n  |> group(columns: [\"parcela\", \"cultivo\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short", "decimals": 0,
+          "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 15},
+          "color": {"mode": "palette-classic"}
+        }
+      },
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom",
+                   "calcs": ["lastNotNull", "max"]}
+      }
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": ["agro-icesi", "historico", "analisis"],
+  "templating": {
+    "list": [
+      {
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]},
+        "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+        "definition": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"agro_iot_data\", tag: \"parcela\")",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Parcelas",
+        "multi": true,
+        "name": "parcela",
+        "options": [],
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"agro_iot_data\", tag: \"parcela\")",
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      }
+    ]
+  },
+  "time": {"from": "now-30d", "to": "now"},
+  "timezone": "America/Bogota",
+  "title": "📈 Agro ICESI — Análisis histórico",
+  "uid": "agro-historico",
+  "version": 1
+}

@@ -1,0 +1,55 @@
+# =============================================================================
+# Provisioning de datasources — Fase 7
+# Archivo a copiar en: /opt/homebrew/etc/grafana/provisioning/datasources/
+#                      (macOS con brew install grafana)
+#
+# Crea automáticamente dos datasources al iniciar Grafana, sin necesidad
+# de configurarlos manualmente desde la UI:
+#   - InfluxDB-Raw          → bucket agro_iot_data         (mediciones de sensores)
+#   - InfluxDB-Indicadores  → bucket agro_iot_indicadores  (VPD, GDD, ETo, etc.)
+# =============================================================================
+
+apiVersion: 1
+
+datasources:
+  # ---------------------------------------------------------------------------
+  # Datasource 1 — Bucket de mediciones crudas (Fase 3-4)
+  # ---------------------------------------------------------------------------
+  - name: InfluxDB-Raw
+    type: influxdb
+    uid: influxdb_raw
+    access: proxy
+    url: http://localhost:8086
+    isDefault: true
+    editable: true
+    jsonData:
+      version: Flux
+      organization: agricultura
+      defaultBucket: agro_iot_data
+      tlsSkipVerify: true
+      httpMode: POST
+      timeInterval: "10s"
+    secureJsonData:
+      # ⚠️ Reemplazar con tu token de Fase 3 (token con R/W sobre ambos buckets).
+      # Alternativa: usar variable de entorno $INFLUX_TOKEN
+      token: ${INFLUX_TOKEN}
+
+  # ---------------------------------------------------------------------------
+  # Datasource 2 — Bucket de indicadores agroclimáticos (Fase 4)
+  # ---------------------------------------------------------------------------
+  - name: InfluxDB-Indicadores
+    type: influxdb
+    uid: influxdb_indicadores
+    access: proxy
+    url: http://localhost:8086
+    isDefault: false
+    editable: true
+    jsonData:
+      version: Flux
+      organization: agricultura
+      defaultBucket: agro_iot_indicadores
+      tlsSkipVerify: true
+      httpMode: POST
+      timeInterval: "1m"
+    secureJsonData:
+      token: ${INFLUX_TOKEN}

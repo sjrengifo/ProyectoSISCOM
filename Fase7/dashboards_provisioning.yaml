@@ -1,0 +1,21 @@
+# =============================================================================
+# Provisioning de dashboards — Fase 7
+# Archivo a copiar en: /opt/homebrew/etc/grafana/provisioning/dashboards/
+#
+# Hace que Grafana cargue automáticamente los 4 dashboards JSON desde
+# /Users/<tu_usuario>/proyecto-icesi/fase7/dashboards/  (ajustar `path`)
+# =============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: 'agro-icesi'
+    orgId: 1
+    folder: 'Agro-ICESI'      # Folder en Grafana donde aparecerán
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30  # Re-escanea cambios cada 30 s
+    allowUiUpdates: true       # Permite editar desde la UI (los cambios persisten)
+    options:
+      path: /Users/srengifo/Desktop/ProyectoSISCOM/Fase7
+      foldersFromFilesStructure: false
