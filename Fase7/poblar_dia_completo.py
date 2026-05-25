@@ -15,6 +15,7 @@ Uso:
 
 import argparse
 import math
+import os
 import random
 import warnings
 from datetime import datetime, timedelta, timezone
@@ -28,12 +29,12 @@ warnings.filterwarnings("ignore")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ── Credenciales ──────────────────────────────────────────────
-INFLUX_URL   = "http://localhost:8086"
-INFLUX_ORG   = "agricultura"
-INFLUX_TOKEN = "z5MJcpefAqdYup07U7RIo8bzKjj4gMdcKjxLFAgf-lOIFJk7PXfWdggz-vs3k97lVuF164JEErRM7JqVlzp-Hw=="
-BUCKET_RAW   = "agro_iot_data"
-BUCKET_IND   = "agro_iot_indicadores"
+# ── Credenciales (sobreescribibles con variables de entorno) ───
+INFLUX_URL   = os.environ.get("INFLUX_URL",        "http://localhost:8086")
+INFLUX_ORG   = os.environ.get("INFLUX_ORG",        "agricultura")
+INFLUX_TOKEN = os.environ.get("INFLUX_TOKEN",       "z5MJcpefAqdYup07U7RIo8bzKjj4gMdcKjxLFAgf-lOIFJk7PXfWdggz-vs3k97lVuF164JEErRM7JqVlzp-Hw==")
+BUCKET_RAW   = os.environ.get("INFLUX_BUCKET_RAW", "agro_iot_data")
+BUCKET_IND   = os.environ.get("INFLUX_BUCKET_IND", "agro_iot_indicadores")
 
 # ── Topología de parcelas ─────────────────────────────────────
 TOPOLOGIA = {

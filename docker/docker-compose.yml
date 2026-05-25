@@ -1,0 +1,257 @@
+version: "3.9"
+
+# =============================================================================
+# SISCOM — Stack completo con Docker Compose
+# Universidad ICESI — Sistemas y Comunicaciones I
+#
+# Uso básico (levanta infraestructura):
+#   docker compose up -d
+#
+# Poblar datos históricos (últimos 7 días):
+#   docker compose --profile poblar run --rm poblar
+#
+# Simulador en tiempo real:
+#   docker compose --profile simulador up simulador
+#
+# Servicio de alertas:
+#   docker compose --profile alertas up -d alertas
+#
+# JupyterLab (notebooks):
+#   docker compose --profile jupyter up jupyter
+#   → abrir http://localhost:8888
+#
+# Detener todo:
+#   docker compose down
+# Detener + borrar datos:
+#   docker compose down -v
+# =============================================================================
+
+services:
+
+  # ── MQTT Broker ─────────────────────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: siscom-mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      - siscom-net
+
+  # ── Base de datos de series temporales ──────────────────────────────────────
+  influxdb:
+    image: influxdb:2.7
+    container_name: siscom-influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_ADMIN_USER}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_ADMIN_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET_RAW}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+      # Variable para el script de init (crea el segundo bucket)
+      DOCKER_INFLUXDB_INIT_BUCKET_IND: ${INFLUX_BUCKET_IND}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - ./influxdb/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "influx", "ping", "--host", "http://localhost:8086"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - siscom-net
+
+  # ── Pipeline de datos Node-RED ───────────────────────────────────────────────
+  nodered:
+    build:
+      context: ./nodered
+      dockerfile: Dockerfile
+    container_name: siscom-nodered
+    restart: unless-stopped
+    ports:
+      - "1880:1880"
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    environment:
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - nodered_data:/data
+    networks:
+      - siscom-net
+
+  # ── Dashboards Grafana ───────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: siscom-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      # Token pasado a los YAML de datasource vía ${INFLUX_TOKEN}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      # Los 4 dashboards JSON se leen directamente desde Fase7/
+      - ../Fase7:/var/lib/grafana/dashboards:ro
+    networks:
+      - siscom-net
+
+  # ============================================================================
+  # SERVICIOS OPCIONALES (activar con --profile)
+  # ============================================================================
+
+  # ── Simulador MQTT (genera datos en tiempo real desde el dataset) ────────────
+  simulador:
+    profiles: [simulador]
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: siscom-simulador
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    environment:
+      MQTT_BROKER_HOST: mosquitto
+      MQTT_BROKER_PORT: "1883"
+      FACTOR_ACELERACION: ${FACTOR_ACELERACION}
+    # Ruta del CSV relativa a /app (raíz del proyecto montada)
+    command: >
+      python Fase2/simulador_sensores.py
+        --dataset Fase2/dataset_agroclimatico_colombia.csv
+        --broker mosquitto
+        --duracion ${SIMULADOR_DURACION:-3600}
+    volumes:
+      - ..:/app:ro
+    working_dir: /app
+    networks:
+      - siscom-net
+
+  # ── Servicio de alertas ──────────────────────────────────────────────────────
+  alertas:
+    profiles: [alertas]
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: siscom-alertas
+    restart: unless-stopped
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    environment:
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_BUCKET_IND: ${INFLUX_BUCKET_IND}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+    command: >
+      python Fase5/servicio_alertas.py
+        --config /app/docker/config/umbrales_docker.yaml
+    volumes:
+      - ..:/app:ro
+    working_dir: /app
+    networks:
+      - siscom-net
+
+  # ── Poblador de datos históricos (ejecución única, luego termina) ────────────
+  poblar:
+    profiles: [poblar]
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: siscom-poblar
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    environment:
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_BUCKET_RAW: ${INFLUX_BUCKET_RAW}
+      INFLUX_BUCKET_IND: ${INFLUX_BUCKET_IND}
+    # Puebla los últimos 7 días (uno a la vez para no sobrecargar la memoria)
+    command: >
+      bash -c "
+        for d in 7 6 5 4 3 2 1 0; do
+          DATE=$$(python -c \"from datetime import date, timedelta; print(date.today() - timedelta(days=$$d))\")
+          echo \">>> Poblando $$DATE ...\"
+          python Fase7/poblar_dia_completo.py --fecha $$DATE
+        done
+        echo '>>> Listo — 8 días poblados en InfluxDB.'
+      "
+    volumes:
+      - ..:/app:ro
+    working_dir: /app
+    networks:
+      - siscom-net
+
+  # ── JupyterLab (acceso a todos los notebooks) ────────────────────────────────
+  jupyter:
+    profiles: [jupyter]
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: siscom-jupyter
+    ports:
+      - "8888:8888"
+    environment:
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_BUCKET_RAW: ${INFLUX_BUCKET_RAW}
+      INFLUX_BUCKET_IND: ${INFLUX_BUCKET_IND}
+      JUPYTER_ENABLE_LAB: "yes"
+    command: >
+      jupyter lab
+        --ip=0.0.0.0
+        --port=8888
+        --no-browser
+        --NotebookApp.token=''
+        --NotebookApp.password=''
+        --NotebookApp.allow_origin='*'
+    volumes:
+      # Montar todo el proyecto como lectura/escritura para poder guardar notebooks
+      - ..:/app
+    working_dir: /app
+    networks:
+      - siscom-net
+
+# =============================================================================
+# VOLÚMENES PERSISTENTES
+# =============================================================================
+volumes:
+  influxdb_data:
+    name: siscom-influxdb-data
+  nodered_data:
+    name: siscom-nodered-data
+  grafana_data:
+    name: siscom-grafana-data
+
+# =============================================================================
+# RED INTERNA
+# =============================================================================
+networks:
+  siscom-net:
+    name: siscom-network
+    driver: bridge

@@ -1,0 +1,287 @@
+# =============================================================================
+# UMBRALES AGRONÓMICOS — Fase 5
+# Sistema de monitoreo IoT agroclimático ICESI
+# =============================================================================
+# Cada umbral está fundamentado en literatura científica colombiana y FAO.
+# Cuando un valor cae en un nivel de severidad superior, se dispara una alerta.
+#
+# NIVELES DE SEVERIDAD:
+#   info       → informativo, no requiere acción inmediata
+#   warning    → vigilar, considerar intervención preventiva
+#   critical   → intervención agronómica obligatoria
+#
+# CANALES DE NOTIFICACIÓN POR SEVERIDAD:
+#   info       → solo log local
+#   warning    → email
+#   critical   → email + SMS + WhatsApp
+# =============================================================================
+
+# --- Configuración global del servicio de alertas ---
+global:
+  intervalo_evaluacion_segundos: 60       # cada cuánto se consulta InfluxDB
+  ventana_consulta_minutos: 15            # rango temporal de cada consulta
+  persistencia_minima_minutos: 10         # un umbral debe sostenerse N min antes de alertar
+  cooldown_alertas_minutos: 30            # no repetir misma alerta dentro de este lapso
+
+# =============================================================================
+# CAÑA DE AZÚCAR (Saccharum officinarum)
+# Referencias: Cenicaña RMA, Muhammad & Imitas 2016, FAO-56
+# =============================================================================
+caña:
+  descripcion: >
+    Cultivo C4 con alto requerimiento hídrico (1500-2500 mm/año).
+    Sensible a estrés hídrico durante crecimiento vegetativo (afecta TCH).
+    Durante maduración se beneficia de estrés moderado para acumular sacarosa.
+
+  variables:
+    # ---------- Indicador VPD (Vapor Pressure Deficit) ----------
+    vpd:
+      descripcion: "Déficit de presión de vapor — indicador #1 de estrés hídrico atmosférico"
+      unidad: "kPa"
+      fuente: "Allen et al. FAO-56 (1998), Cenicaña 2023"
+      rangos:
+        optimo:        { min: 0.4,  max: 1.0 }
+        aceptable:     { min: 0.0,  max: 1.6 }
+      umbrales:
+        - { nivel: warning,  condicion: ">", valor: 1.6,
+            mensaje: "VPD elevado — estrés moderado en estomas",
+            accion: "Revisar lámina de riego y considerar adelantar turno" }
+        - { nivel: critical, condicion: ">", valor: 2.0,
+            mensaje: "VPD CRÍTICO — fotosíntesis detenida, pérdida de productividad",
+            accion: "Riego inmediato urgente. Riesgo de pérdida TCH si persiste >2 h" }
+
+    # ---------- Temperatura del aire ----------
+    temperatura_aire:
+      descripcion: "Temperatura del aire a 2 m"
+      unidad: "°C"
+      fuente: "InfoAgro (Muhammad & Imitas 2016), Cenicaña RMA"
+      rangos:
+        optimo:        { min: 25,   max: 32 }
+        aceptable:     { min: 20,   max: 35 }
+      umbrales:
+        - { nivel: warning,  condicion: ">", valor: 35,
+            mensaje: "Temperatura elevada — estrés térmico moderado",
+            accion: "Verificar humedad del suelo. Aumenta demanda hídrica ~10% por °C" }
+        - { nivel: critical, condicion: ">", valor: 38,
+            mensaje: "Temperatura CRÍTICA — daño en germinación y crecimiento",
+            accion: "Aplicar riego refrescante. Riesgo de muerte de meristemas" }
+        - { nivel: warning,  condicion: "<", valor: 20,
+            mensaje: "Temperatura baja — crecimiento ralentizado",
+            accion: "Esperar — la caña detiene crecimiento bajo 20°C pero no muere" }
+
+    # ---------- Humedad relativa ----------
+    humedad_relativa:
+      descripcion: "Humedad relativa del aire"
+      unidad: "%"
+      fuente: "Infoagro 2018"
+      rangos:
+        optimo_vegetativo: { min: 75, max: 85 }
+        optimo_maduracion: { min: 50, max: 65 }
+      umbrales:
+        - { nivel: warning,  condicion: ">", valor: 90,
+            mensaje: "HR alta sostenida — riesgo fitosanitario",
+            accion: "Vigilar roya naranja (Puccinia kuehnii) y carbón de la caña" }
+
+    # ---------- Indicador: Índice de calor ----------
+    indice_calor:
+      descripcion: "Sensación térmica considerando humedad (Heat Index)"
+      unidad: "°C"
+      fuente: "NWS Steadman 1979"
+      rangos:
+        optimo: { min: 0, max: 32 }
+      umbrales:
+        - { nivel: warning,  condicion: ">", valor: 35,
+            mensaje: "Índice de calor elevado — riesgo a trabajadores en campo",
+            accion: "Suspender labores manuales entre 10:00-15:00" }
+        - { nivel: critical, condicion: ">", valor: 40,
+            mensaje: "Índice de calor CRÍTICO — golpe de calor probable",
+            accion: "Suspender todas las labores de campo inmediatamente" }
+
+    # ---------- Precipitación ----------
+    precipitacion:
+      descripcion: "Precipitación diaria"
+      unidad: "mm"
+      fuente: "Cenicaña — manejo de drenajes"
+      rangos:
+        optimo: { min: 4, max: 8 }   # mm/día promedio durante crecimiento
+      umbrales:
+        - { nivel: warning,  condicion: ">", valor: 30,
+            mensaje: "Precipitación intensa — riesgo de encharcamiento",
+            accion: "Revisar drenajes. La caña no tolera >48h en saturación hídrica" }
+        - { nivel: critical, condicion: ">", valor: 50,
+            mensaje: "LLUVIA TORRENCIAL — anegamiento probable",
+            accion: "Activar drenajes de emergencia. Posible volcamiento de cañas maduras" }
+
+    # ---------- Indicador: ETo (evapotranspiración) ----------
+    eto_hargreaves:
+      descripcion: "Evapotranspiración de referencia (Hargreaves FAO-56)"
+      unidad: "mm/día"
+      fuente: "Allen et al. FAO-56 ec. 52"
+      rangos:
+        optimo: { min: 3, max: 5 }
+      umbrales:
+        - { nivel: warning,  condicion: ">", valor: 6,
+            mensaje: "Demanda hídrica alta — programar riego",
+            accion: "Ajustar lámina. ETc real ≈ ETo × 1.25 (Kc caña pleno desarrollo)" }
+
+
+# =============================================================================
+# ARROZ (Oryza sativa)
+# Referencias: FAO 2004, FEDEARROZ AMTEC, INTA 2009, AgriCien
+# =============================================================================
+arroz:
+  descripcion: >
+    Cultivo extremadamente sensible a temperatura nocturna en floración:
+    una sola noche fría (<18°C) o muy caliente (>24°C nocturna) durante
+    la floración puede causar esterilidad de espiguillas y pérdida total.
+
+  variables:
+    # ---------- Temperatura del aire (CRÍTICO en floración) ----------
+    temperatura_aire:
+      descripcion: "Temperatura del aire a 2 m"
+      unidad: "°C"
+      fuente: "FAO 2004, FEDEARROZ AMTEC, AgriCien 2020"
+      rangos:
+        optimo:    { min: 26, max: 33 }
+        aceptable: { min: 22, max: 35 }
+      umbrales:
+        - { nivel: warning,  condicion: ">", valor: 33,
+            mensaje: "Temperatura diurna alta — riesgo de vaneamiento",
+            accion: "Vigilar etapa fenológica. Si está en floración, mantener lámina de agua" }
+        - { nivel: critical, condicion: ">", valor: 35,
+            mensaje: "Temperatura CRÍTICA — esterilidad de espiguillas inminente",
+            accion: "Aumentar lámina a 15-20 cm para amortiguar térmicamente la panícula" }
+        - { nivel: warning,  condicion: "<", valor: 22,
+            mensaje: "Temperatura diurna baja — exerción incompleta",
+            accion: "Retraso de floración esperado. Monitorear panícula" }
+
+    # ---------- Temperatura mínima (la más crítica en floración) ----------
+    temperatura_aire_min:
+      descripcion: "Temperatura mínima nocturna — clave durante floración"
+      unidad: "°C"
+      fuente: "FAO 2004, AgriCien 2020"
+      rangos:
+        optimo: { min: 19, max: 24 }
+      umbrales:
+        - { nivel: critical, condicion: "<", valor: 18,
+            mensaje: "T° MÍNIMA CRÍTICA en floración — esterilidad masiva probable",
+            accion: "Aumentar lámina de agua a 15 cm. La esterilidad puede llegar al 100%" }
+        - { nivel: warning,  condicion: ">", valor: 24,
+            mensaje: "T° nocturna alta — aborto de óvulos recién fecundados",
+            accion: "Esperado en Llanos. Considerar variedades tolerantes al calor nocturno" }
+
+    # ---------- VPD ----------
+    vpd:
+      descripcion: "Déficit de presión de vapor"
+      unidad: "kPa"
+      fuente: "Allen et al. FAO-56"
+      rangos:
+        optimo: { min: 0.4, max: 1.2 }
+      umbrales:
+        - { nivel: warning,  condicion: ">", valor: 1.6,
+            mensaje: "VPD elevado — estrés hídrico en arroz",
+            accion: "Mantener lámina de agua. El arroz secano necesita riego urgente" }
+        - { nivel: critical, condicion: ">", valor: 2.0,
+            mensaje: "VPD CRÍTICO — fotosíntesis detenida",
+            accion: "Riego/inundación inmediata. Arroz secano en zona crítica" }
+
+    # ---------- Humedad relativa ----------
+    humedad_relativa:
+      descripcion: "Humedad relativa del aire"
+      unidad: "%"
+      fuente: "FEDEARROZ AMTEC, Universidad Nacional 2025"
+      rangos:
+        optimo: { min: 65, max: 85 }
+      umbrales:
+        - { nivel: warning,  condicion: ">", valor: 90,
+            mensaje: "HR alta sostenida — riesgo de Pyricularia (añublo de la panícula)",
+            accion: "Aplicar fungicida preventivo. Patógeno crítico en floración" }
+
+    # ---------- Punto de rocío (riesgo fitosanitario nocturno) ----------
+    punto_rocio:
+      descripcion: "Punto de rocío — riesgo de condensación foliar nocturna"
+      unidad: "°C"
+      fuente: "Magnus-Tetens, IDEAM"
+      umbrales:
+        - { nivel: warning,  condicion: "delta_temp_punto_rocio_lt", valor: 2,
+            mensaje: "Riesgo de condensación nocturna — Pyricularia / añublo bacterial",
+            accion: "Aplicar control fitosanitario preventivo. Esperar antes de aplicar foliares" }
+
+    # ---------- Precipitación ----------
+    precipitacion:
+      descripcion: "Precipitación diaria"
+      unidad: "mm"
+      fuente: "FEDEARROZ AMTEC — manejo de lámina"
+      rangos:
+        optimo: { min: 5, max: 15 }
+      umbrales:
+        - { nivel: warning,  condicion: ">", valor: 40,
+            mensaje: "Precipitación intensa — exceso de lámina",
+            accion: "Drenar exceso si supera 15 cm. Riesgo de tumbado de plantas" }
+        - { nivel: critical, condicion: ">", valor: 80,
+            mensaje: "LLUVIA TORRENCIAL — tumbado masivo probable",
+            accion: "Activar drenajes urgente. Cosecha imposible con plantas tumbadas" }
+
+    # ---------- Radiación solar ----------
+    radiacion_solar:
+      descripcion: "Radiación solar global"
+      unidad: "MJ/m²/día"
+      fuente: "FAO 2004 — efecto crítico de sombra en floración"
+      rangos:
+        optimo: { min: 16, max: 22 }
+      umbrales:
+        - { nivel: warning,  condicion: "<", valor: 10,
+            mensaje: "Radiación baja sostenida — sombra prolongada en floración",
+            accion: "Si persiste 5+ días en floración: esterilidad por falta de carbohidratos" }
+
+    # ---------- ETo ----------
+    eto_hargreaves:
+      descripcion: "Evapotranspiración de referencia"
+      unidad: "mm/día"
+      fuente: "Allen et al. FAO-56"
+      umbrales:
+        - { nivel: warning,  condicion: ">", valor: 6,
+            mensaje: "Demanda hídrica alta",
+            accion: "Verificar lámina. ETc arroz inundado ≈ ETo × 1.20" }
+
+
+# =============================================================================
+# CONFIGURACIÓN DE CANALES DE NOTIFICACIÓN
+# =============================================================================
+canales:
+  # Si está activado pero las credenciales faltan, se usa el modo "dry-run"
+  # que solo loguea sin enviar realmente la notificación.
+
+  email:
+    activo: true
+    smtp_host: smtp.gmail.com
+    smtp_port: 587
+    smtp_user: ${SMTP_USER}              # variable de entorno
+    smtp_password: ${SMTP_PASSWORD}      # ⚠ usar Gmail App Password, NO la contraseña real
+    remitente: "administradorparcelasiscom@gmail.com"
+    destinatarios:
+      - administradorparcelasiscom@gmail.com
+
+  sms:
+    activo: true
+    proveedor: twilio                    # también: messagebird, infobip
+    twilio_account_sid: ${TWILIO_ACCOUNT_SID}
+    twilio_auth_token:  ${TWILIO_AUTH_TOKEN}
+    twilio_from:        "+17753146752"
+    destinatarios:
+      - "+573113450648"   # móvil del agrónomo
+
+  whatsapp:
+    activo: true
+    proveedor: twilio                    # API WhatsApp Business via Twilio Sandbox
+    twilio_account_sid: ${TWILIO_ACCOUNT_SID}
+    twilio_auth_token:  ${TWILIO_AUTH_TOKEN}
+    twilio_from:        "whatsapp:+14155238886"
+    destinatarios:
+      - "whatsapp:+573113450648"
+
+  mqtt_alertas:
+    activo: true
+    broker: mosquitto
+    port: 1883
+    topico_base: "agricultura/alertas"   # se publica como /<cultivo>/<parcela>/<indicador>

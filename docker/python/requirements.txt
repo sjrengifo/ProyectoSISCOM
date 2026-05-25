@@ -1,0 +1,28 @@
+# SISCOM — dependencias Python para el entorno Docker
+# Simulador, servicio de alertas, poblar_dia_completo, JupyterLab
+
+# IoT / mensajería
+paho-mqtt>=2.1.0
+
+# Base de datos de series temporales
+influxdb-client>=1.44.0
+
+# Ciencia de datos
+pandas>=2.0.0
+numpy>=1.26.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+scipy>=1.11.0
+matplotlib>=3.7.0
+seaborn>=0.13.0
+
+# Configuración
+PyYAML>=6.0
+
+# Notificaciones
+requests>=2.31.0
+twilio>=8.0.0
+
+# Notebooks
+jupyterlab>=4.0.0
+nbconvert>=7.0.0

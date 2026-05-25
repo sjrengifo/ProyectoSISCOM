@@ -1,0 +1,229 @@
+[
+  {
+    "id": "fase4_tab",
+    "type": "tab",
+    "label": "Fase 4 — Procesamiento en tiempo real",
+    "disabled": false,
+    "info": "Pipeline ampliado de Fase 3 con 4 etapas de procesamiento en tiempo real:\n\n  MQTT In\n    → 1. Limpieza (validación de rangos físicos, NaN, duplicados)\n    → 2. Transformación (unidades, schema, enriquecimiento)\n    → 3. Cálculo de indicadores agroclimáticos (IC, VPD, Punto de rocío, GDD)\n    → 4. Variables derivadas (ETo Hargreaves FAO-56)\n    → InfluxDB Out [bucket=agro_iot_data]            // mediciones limpias\n    → InfluxDB Out [bucket=agro_iot_indicadores]     // indicadores y derivadas\n\nEsta fase NO genera alertas — solo expone los indicadores. Las alertas son\nresponsabilidad de la Fase 5, que consultará los indicadores almacenados aquí."
+  },
+  {
+    "id": "mqtt_broker_local_f4",
+    "type": "mqtt-broker",
+    "name": "Mosquitto local",
+    "broker": "mosquitto",
+    "port": "1883",
+    "clientid": "node_red_gateway_f4_icesi",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true
+  },
+  {
+    "id": "influx_server_v2_raw",
+    "type": "influxdb",
+    "hostname": "influxdb",
+    "port": "8086",
+    "protocol": "http",
+    "database": "agricultura",
+    "name": "InfluxDB raw (agro_iot_data)",
+    "usetls": false,
+    "tls": "",
+    "influxdbVersion": "2.0",
+    "url": "http://influxdb:8086",
+    "rejectUnauthorized": false
+  },
+  {
+    "id": "influx_server_v2_ind",
+    "type": "influxdb",
+    "hostname": "influxdb",
+    "port": "8086",
+    "protocol": "http",
+    "database": "agricultura",
+    "name": "InfluxDB indicadores",
+    "usetls": false,
+    "tls": "",
+    "influxdbVersion": "2.0",
+    "url": "http://influxdb:8086",
+    "rejectUnauthorized": false
+  },
+  {
+    "id": "mqtt_in_f4",
+    "type": "mqtt in",
+    "z": "fase4_tab",
+    "name": "MQTT In — agricultura/#",
+    "topic": "agricultura/#",
+    "qos": "1",
+    "datatype": "json",
+    "broker": "mqtt_broker_local_f4",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "x": 130,
+    "y": 240,
+    "wires": [
+      [
+        "fn_etapa1_limpieza"
+      ]
+    ]
+  },
+  {
+    "id": "fn_etapa1_limpieza",
+    "type": "function",
+    "z": "fase4_tab",
+    "name": "1. Limpieza",
+    "func": "// ============================================================\n// ETAPA 1 — LIMPIEZA DE DATOS\n// ============================================================\n// Responsabilidades:\n//   a) Descartar mensajes de sistema (agricultura/sistema/*)\n//   b) Validar estructura mínima del payload\n//   c) Descartar valores NaN, null o infinitos\n//   d) Validar rangos físicos de cada variable (descarta lecturas\n//      claramente erróneas como T° = -50°C o RH = 200%)\n//   e) Deduplicar usando una ventana corta por (sensor_id, valor)\n//      para amortiguar reintentos del simulador.\n// ============================================================\n\nif (msg.topic && msg.topic.startsWith('agricultura/sistema/')) {\n    return null;\n}\nconst p = msg.payload;\nif (typeof p !== 'object' || p === null) {\n    node.warn('Payload no es objeto JSON');\n    return null;\n}\nif (!p.variable || p.valor === undefined || p.valor === null) {\n    node.warn('Mensaje sin variable o valor: ' + msg.topic);\n    return null;\n}\n\n// Convertir a número y validar finitud\nconst v = parseFloat(p.valor);\nif (!Number.isFinite(v)) {\n    node.warn('Valor no finito: ' + p.valor + ' en ' + msg.topic);\n    return null;\n}\n\n// Rangos físicos por variable (descartar errores groseros)\n// NO son rangos agronómicos — esos van en la Fase 5 (alertas)\nconst RANGOS_FISICOS = {\n    temperatura_aire:   [-20, 55],     // °C\n    temperatura_suelo:  [-20, 60],\n    humedad_relativa:   [0, 100],      // %\n    humedad_suelo:      [0, 100],\n    precipitacion:      [0, 500],      // mm/día (record mundial diario ~1825 mm, dejamos margen alto)\n    radiacion_solar:    [0, 40],       // MJ/m²/día\n    velocidad_viento:   [0, 50],       // m/s\n    ph_suelo:           [0, 14]\n};\nconst rango = RANGOS_FISICOS[p.variable];\nif (rango && (v < rango[0] || v > rango[1])) {\n    node.warn(`Valor fuera de rango físico (${p.variable}=${v}): ${msg.topic}`);\n    return null;\n}\n\n// Deduplicación leve por (sensor_id, valor) en ventana de 1 segundo\n// (los reintentos de QoS=1 pueden generar duplicados ocasionales)\nconst keyDedup = (p.sensor_id || '') + ':' + v.toFixed(3);\nconst now = Date.now();\nconst dedup = context.get('dedup') || {};\nif (dedup[keyDedup] && now - dedup[keyDedup] < 1000) {\n    return null;   // duplicado dentro de ventana, descartar silenciosamente\n}\ndedup[keyDedup] = now;\n// Limpieza periódica del cache de dedup (cada 100 mensajes)\nconst counter = (context.get('counter') || 0) + 1;\ncontext.set('counter', counter);\nif (counter % 100 === 0) {\n    const cutoff = now - 10000;   // 10s\n    Object.keys(dedup).forEach(k => { if (dedup[k] < cutoff) delete dedup[k]; });\n}\ncontext.set('dedup', dedup);\n\n// Pasa al siguiente nodo con valor normalizado\np.valor = v;\nmsg.payload = p;\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 340,
+    "y": 240,
+    "wires": [
+      [
+        "fn_etapa2_transform"
+      ]
+    ]
+  },
+  {
+    "id": "fn_etapa2_transform",
+    "type": "function",
+    "z": "fase4_tab",
+    "name": "2. Transformación",
+    "func": "// ============================================================\n// ETAPA 2 — TRANSFORMACIÓN\n// ============================================================\n// Responsabilidades:\n//   a) Normalizar unidades (km/h → m/s si llegara, °F → °C)\n//   b) Convertir radiación de MJ/m²/día a W/m² instantáneo cuando aplique\n//   c) Enriquecer con metadatos de la parcela (departamento, altitud)\n//   d) Estandarizar timestamps a UTC ISO-8601\n// ============================================================\n\nconst p = msg.payload;\n\n// Metadata estática por parcela (consistente con Fase 1 — altitudes IGAC)\nconst META_PARCELA = {\n    parcela_1: { departamento: 'Valle del Cauca', altitud_m: 1001 },\n    parcela_2: { departamento: 'Valle del Cauca', altitud_m: 980 },\n    parcela_3: { departamento: 'Tolima',          altitud_m: 323 },\n    parcela_4: { departamento: 'Casanare',        altitud_m: 350 }\n};\nconst meta = META_PARCELA[p.parcela] || { departamento: 'desconocido', altitud_m: 0 };\np.departamento = meta.departamento;\np.altitud_m    = meta.altitud_m;\n\n// Normalización defensiva de unidades — si el simulador alguna vez\n// publica viento en km/h, convertir a m/s\nif (p.variable === 'velocidad_viento' && p.unidad === 'km/h') {\n    p.valor = p.valor / 3.6;\n    p.unidad = 'm/s';\n}\nif ((p.variable === 'temperatura_aire' || p.variable === 'temperatura_suelo') && p.unidad === '°F') {\n    p.valor = (p.valor - 32) * 5/9;\n    p.unidad = '°C';\n}\n\n// Timestamp normalizado (ISO UTC)\nlet ts;\nif (p.timestamp_real) {\n    const t = Date.parse(p.timestamp_real);\n    ts = isNaN(t) ? Date.now() : t;\n} else {\n    ts = Date.now();\n}\np.timestamp_iso = new Date(ts).toISOString();\nmsg.timestamp = ts;\nmsg.payload = p;\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 560,
+    "y": 240,
+    "wires": [
+      [
+        "fn_etapa3_indicadores",
+        "fn_persist_raw"
+      ]
+    ]
+  },
+  {
+    "id": "fn_persist_raw",
+    "type": "function",
+    "z": "fase4_tab",
+    "name": "→ punto raw",
+    "func": "// Preparar punto InfluxDB para el bucket agro_iot_data (mediciones limpias)\n// (formato compatible con node-red-contrib-influxdb v2)\nconst p = msg.payload;\nconst fields = {};\nfields[p.variable] = parseFloat(p.valor);\nconst tags = {\n    parcela:      p.parcela,\n    cultivo:      p.cultivo,\n    ubicacion:    p.ubicacion,\n    departamento: p.departamento,\n    variable:     p.variable,\n    unidad:       p.unidad || '',\n    sensor_id:    p.sensor_id || ''\n};\nreturn {\n    payload:   [fields, tags],\n    timestamp: msg.timestamp\n};",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 780,
+    "y": 160,
+    "wires": [
+      [
+        "influx_out_raw"
+      ]
+    ]
+  },
+  {
+    "id": "fn_etapa3_indicadores",
+    "type": "function",
+    "z": "fase4_tab",
+    "name": "3. Indicadores agroclimáticos",
+    "func": "// ============================================================\n// ETAPA 3 — CÁLCULO DE INDICADORES AGROCLIMÁTICOS\n// ============================================================\n// Mantiene un cache por parcela con la ÚLTIMA lectura de cada variable.\n// Cuando llegan dos variables relacionadas (T° + RH), se calculan:\n//\n//   - Índice de calor (Heat Index)            — sensación térmica\n//   - Punto de rocío (Dew Point)               — riesgo de condensación\n//   - Déficit de presión de vapor (VPD)        — estrés hídrico foliar\n//\n// Los indicadores se publican como msg.payload.indicadores[] y\n// fluyen al nodo de persistencia hacia agro_iot_indicadores.\n// ============================================================\n\nconst p = msg.payload;\nconst parcela = p.parcela;\nif (!parcela) return msg;\n\n// Cache global por parcela: { temperatura_aire: {v, t}, humedad_relativa: {v, t}, ... }\nconst cache = flow.get('cache_parcelas') || {};\ncache[parcela] = cache[parcela] || {};\ncache[parcela][p.variable] = { v: parseFloat(p.valor), t: msg.timestamp };\nflow.set('cache_parcelas', cache);\n\nconst ind = [];\nconst pc = cache[parcela];\n\n// --- Helpers ---\nconst hasFresh = (key, maxAgeMs = 10 * 60 * 1000) => {\n    return pc[key] && (msg.timestamp - pc[key].t) <= maxAgeMs;\n};\n\n// --- 3.1 Índice de calor (NWS Steadman/Rothfusz) ---\n// Requiere T° y HR frescas. Válido cuando T > 26.7 °C.\nif (hasFresh('temperatura_aire') && hasFresh('humedad_relativa')) {\n    const T = pc.temperatura_aire.v;   // °C\n    const RH = pc.humedad_relativa.v;  // %\n    const Tf = T * 9/5 + 32;            // a °F\n    let HIf;\n    if (Tf < 80) {\n        HIf = 0.5 * (Tf + 61.0 + (Tf - 68.0) * 1.2 + RH * 0.094);\n    } else {\n        HIf = -42.379 + 2.04901523*Tf + 10.14333127*RH\n            - 0.22475541*Tf*RH - 0.00683783*Tf*Tf\n            - 0.05481717*RH*RH + 0.00122874*Tf*Tf*RH\n            + 0.00085282*Tf*RH*RH - 0.00000199*Tf*Tf*RH*RH;\n    }\n    const HI = (HIf - 32) * 5/9;        // a °C\n    ind.push({ nombre: 'indice_calor', valor: +HI.toFixed(2), unidad: '°C' });\n\n    // --- 3.2 Punto de rocío (Magnus-Tetens) ---\n    const a = 17.625, b = 243.04;\n    const alpha = Math.log(Math.max(RH, 0.01) / 100) + a * T / (b + T);\n    const Td = (b * alpha) / (a - alpha);\n    ind.push({ nombre: 'punto_rocio', valor: +Td.toFixed(2), unidad: '°C' });\n\n    // --- 3.3 Déficit de presión de vapor (VPD, Allen et al. FAO-56) ---\n    // es(T) = 0.6108 * exp(17.27*T/(T+237.3))   [kPa]\n    // ea    = es(T) * RH / 100\n    // VPD   = es - ea\n    const es = 0.6108 * Math.exp(17.27 * T / (T + 237.3));\n    const ea = es * RH / 100;\n    const VPD = es - ea;\n    ind.push({ nombre: 'vpd', valor: +VPD.toFixed(3), unidad: 'kPa' });\n}\n\n// --- 3.4 Grados-día de crecimiento (GDD) ---\n// Necesita T_max y T_min frescas; T_base por cultivo:\n//   caña = 18°C (Cenicaña), arroz = 10°C (FEDEARROZ)\nif (hasFresh('temperatura_aire')) {\n    // En ausencia de T_max/T_min explícitos del simulador,\n    // se usa la T° media instantánea como proxy. (En la práctica\n    // este indicador se acumula diariamente vía task Flux — ver Fase 5).\n    const T = pc.temperatura_aire.v;\n    const T_base = (p.cultivo === 'caña') ? 18.0 : 10.0;\n    const gdd_instantaneo = Math.max(0, T - T_base);\n    ind.push({\n        nombre: 'gdd_instantaneo',\n        valor: +gdd_instantaneo.toFixed(2),\n        unidad: '°C·día',\n        meta: { t_base: T_base }\n    });\n}\n\n// Si no se calculó ningún indicador todavía, no propagar\nif (ind.length === 0) return null;\n\nmsg.payload.indicadores = ind;\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 800,
+    "y": 320,
+    "wires": [
+      [
+        "fn_etapa4_derivadas"
+      ]
+    ]
+  },
+  {
+    "id": "fn_etapa4_derivadas",
+    "type": "function",
+    "z": "fase4_tab",
+    "name": "4. Variables derivadas (ETo)",
+    "func": "// ============================================================\n// ETAPA 4 — VARIABLES DERIVADAS\n// ============================================================\n// Evapotranspiración de referencia (ETo) por el método Hargreaves\n// (FAO-56, ec. 52), versión simplificada que sólo requiere:\n//   T_max, T_min, T_media, Ra (radiación extraterrestre)\n//\n// Aproximación válida cuando no se dispone de viento y humedad fiables.\n// Útil para programar riego en caña y arroz.\n// ============================================================\n\nconst p = msg.payload;\nconst parcela = p.parcela;\nconst cache = flow.get('cache_parcelas') || {};\nconst pc = cache[parcela] || {};\n\n// Ra (radiación extraterrestre) — aproximada con un valor mensual constante\n// para la latitud ecuatorial colombiana (~4°N). Valores en MJ/m²/día.\n// Fuente: tabla 2.6 FAO-56 (Allen et al. 1998), latitud 5°N promedio anual.\nconst Ra_aprox = 36.0;   // MJ/m²/día (aprox. ecuatorial, valor medio anual)\n\nconst Tmean = pc.temperatura_aire ? pc.temperatura_aire.v : null;\n// El simulador publica T_aire como serie temporal; usamos rango aproximado\n// de amplitud diaria típica (Fase 1: 8-12 °C). En la práctica, los valores\n// reales de T_max y T_min llegarán como variables explícitas en versiones\n// futuras del simulador. Aquí estimamos.\nif (Tmean !== null) {\n    const Tmax_est = Tmean + 5.0;\n    const Tmin_est = Tmean - 5.0;\n    // Hargreaves: ETo = 0.0023 * (Tmean+17.8) * sqrt(Tmax-Tmin) * Ra\n    const Tdiff = Math.max(Tmax_est - Tmin_est, 0.1);\n    const ETo = 0.0023 * (Tmean + 17.8) * Math.sqrt(Tdiff) * Ra_aprox * 0.408;\n    // Multiplicar por 0.408 convierte MJ/m²/día a mm/día (factor de conversión\n    // energía → agua usado en FAO-56 ec. 20)\n    msg.payload.indicadores = msg.payload.indicadores || [];\n    msg.payload.indicadores.push({\n        nombre: 'eto_hargreaves',\n        valor: +ETo.toFixed(3),\n        unidad: 'mm/día',\n        meta: { metodo: 'Hargreaves FAO-56', Ra_MJm2dia: Ra_aprox }\n    });\n}\n\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 1080,
+    "y": 320,
+    "wires": [
+      [
+        "fn_split_indicadores"
+      ]
+    ]
+  },
+  {
+    "id": "fn_split_indicadores",
+    "type": "function",
+    "z": "fase4_tab",
+    "name": "→ puntos InfluxDB (indicadores)",
+    "func": "// Convertir cada indicador calculado en un punto independiente\n// para el bucket agro_iot_indicadores.\nconst p = msg.payload;\nif (!p.indicadores || p.indicadores.length === 0) return null;\n\nconst mensajes = p.indicadores.map(ind => {\n    const fields = {};\n    fields[ind.nombre] = parseFloat(ind.valor);\n    const tags = {\n        parcela:      p.parcela,\n        cultivo:      p.cultivo,\n        ubicacion:    p.ubicacion,\n        departamento: p.departamento || 'desconocido',\n        indicador:    ind.nombre,\n        unidad:       ind.unidad || ''\n    };\n    return {\n        payload:   [fields, tags],\n        timestamp: msg.timestamp\n    };\n});\n// El nodo InfluxDB Out acepta arrays de mensajes — los splittea\nreturn [mensajes];",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 1320,
+    "y": 320,
+    "wires": [
+      [
+        "influx_out_indicadores",
+        "debug_indicadores"
+      ]
+    ]
+  },
+  {
+    "id": "influx_out_raw",
+    "type": "influxdb out",
+    "z": "fase4_tab",
+    "influxdb": "influx_server_v2_raw",
+    "name": "InfluxDB → sensor_data",
+    "measurement": "sensor_data",
+    "precision": "ms",
+    "retentionPolicy": "",
+    "database": "database",
+    "precisionV18FluxV20": "ms",
+    "retentionPolicyV18Flux": "",
+    "org": "agricultura",
+    "bucket": "agro_iot_data",
+    "x": 1010,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "influx_out_indicadores",
+    "type": "influxdb out",
+    "z": "fase4_tab",
+    "influxdb": "influx_server_v2_ind",
+    "name": "InfluxDB → indicadores",
+    "measurement": "indicadores",
+    "precision": "ms",
+    "retentionPolicy": "",
+    "database": "database",
+    "precisionV18FluxV20": "ms",
+    "retentionPolicyV18Flux": "",
+    "org": "agricultura",
+    "bucket": "agro_iot_indicadores",
+    "x": 1590,
+    "y": 320,
+    "wires": []
+  },
+  {
+    "id": "debug_indicadores",
+    "type": "debug",
+    "z": "fase4_tab",
+    "name": "Debug — indicadores",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 1590,
+    "y": 400,
+    "wires": []
+  },
+  {
+    "id": "comment_pipeline_f4",
+    "type": "comment",
+    "z": "fase4_tab",
+    "name": "Pipeline: MQTT → Limpieza → Transformación → Indicadores → ETo → 2 buckets",
+    "info": "ETAPAS\n  1. Limpieza: descarta NaN, fuera de rango físico, duplicados.\n  2. Transformación: normaliza unidades, enriquece con metadata, timestamps ISO.\n  3. Indicadores: Heat Index, Dew Point, VPD, GDD (requieren T° + RH frescas).\n  4. Derivadas: ETo Hargreaves FAO-56 para programación de riego.\n\nSALIDAS\n  - agro_iot_data         : mediciones limpias y enriquecidas (igual que Fase 3 + metadata)\n  - agro_iot_indicadores  : indicadores y variables derivadas — base para la Fase 5 (alertas)",
+    "x": 380,
+    "y": 80,
+    "wires": []
+  }
+]
