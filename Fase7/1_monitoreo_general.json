@@ -45,13 +45,13 @@
       "id": 1,
       "title": "T° aire (último valor)",
       "description": "Temperatura del aire más reciente por parcela",
-      "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+      "datasource": {"type": "influxdb", "uid": "efmenrhxbdclcc"},
       "gridPos": {"h": 6, "w": 12, "x": 0, "y": 1},
       "targets": [
         {
           "refId": "A",
-          "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
-          "query": "from(bucket: \"agro_iot_data\")\n  |> range(start: -10m)\n  |> filter(fn: (r) => r._measurement == \"sensor_data\")\n  |> filter(fn: (r) => r.variable == \"temperatura_aire\")\n  |> group(columns: [\"parcela\", \"ubicacion\"])\n  |> last()"
+          "datasource": {"type": "influxdb", "uid": "efmenrhxbdclcc"},
+          "query": "from(bucket: \"agro_iot_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_data\")\n  |> filter(fn: (r) => r.variable == \"temperatura_aire\")\n  |> group(columns: [\"parcela\", \"ubicacion\"])\n  |> last()"
         }
       ],
       "fieldConfig": {
@@ -87,13 +87,13 @@
       "id": 2,
       "title": "Humedad relativa (%)",
       "description": "Humedad relativa del aire más reciente",
-      "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+      "datasource": {"type": "influxdb", "uid": "efmenrhxbdclcc"},
       "gridPos": {"h": 6, "w": 12, "x": 12, "y": 1},
       "targets": [
         {
           "refId": "A",
-          "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
-          "query": "from(bucket: \"agro_iot_data\")\n  |> range(start: -10m)\n  |> filter(fn: (r) => r._measurement == \"sensor_data\")\n  |> filter(fn: (r) => r.variable == \"humedad_relativa\")\n  |> group(columns: [\"parcela\", \"ubicacion\"])\n  |> last()"
+          "datasource": {"type": "influxdb", "uid": "efmenrhxbdclcc"},
+          "query": "from(bucket: \"agro_iot_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_data\")\n  |> filter(fn: (r) => r.variable == \"humedad_relativa\")\n  |> group(columns: [\"parcela\", \"ubicacion\"])\n  |> last()"
         }
       ],
       "fieldConfig": {
@@ -136,13 +136,13 @@
       "id": 3,
       "title": "VPD (kPa) — estrés hídrico atmosférico",
       "description": "Déficit de presión de vapor. >1.6 kPa = estrés moderado, >2.0 kPa = severo (FAO-56)",
-      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "datasource": {"type": "influxdb", "uid": "dfmeo4l5pa0w0f"},
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
       "targets": [
         {
           "refId": "A",
-          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
-          "query": "from(bucket: \"agro_iot_indicadores\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"indicadores\")\n  |> filter(fn: (r) => r.indicador == \"vpd\")\n  |> group(columns: [\"parcela\"])\n  |> last()"
+          "datasource": {"type": "influxdb", "uid": "dfmeo4l5pa0w0f"},
+          "query": "from(bucket: \"agro_iot_indicadores\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"indicadores\")\n  |> filter(fn: (r) => r.indicador == \"vpd\")\n  |> group(columns: [\"parcela\"])\n  |> last()"
         }
       ],
       "fieldConfig": {
@@ -176,13 +176,13 @@
       "id": 4,
       "title": "Índice de calor (°C)",
       "description": "Sensación térmica. >35°C = riesgo a trabajadores; >40°C = golpe de calor probable (NWS)",
-      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "datasource": {"type": "influxdb", "uid": "dfmeo4l5pa0w0f"},
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
       "targets": [
         {
           "refId": "A",
-          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
-          "query": "from(bucket: \"agro_iot_indicadores\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"indicadores\")\n  |> filter(fn: (r) => r.indicador == \"indice_calor\")\n  |> group(columns: [\"parcela\"])\n  |> last()"
+          "datasource": {"type": "influxdb", "uid": "dfmeo4l5pa0w0f"},
+          "query": "from(bucket: \"agro_iot_indicadores\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"indicadores\")\n  |> filter(fn: (r) => r.indicador == \"indice_calor\")\n  |> group(columns: [\"parcela\"])\n  |> last()"
         }
       ],
       "fieldConfig": {
@@ -214,13 +214,13 @@
       "id": 5,
       "title": "ETo (mm/día) — demanda hídrica",
       "description": "Evapotranspiración de referencia Hargreaves FAO-56. >6 mm/día = demanda alta",
-      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "datasource": {"type": "influxdb", "uid": "dfmeo4l5pa0w0f"},
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
       "targets": [
         {
           "refId": "A",
-          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
-          "query": "from(bucket: \"agro_iot_indicadores\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"indicadores\")\n  |> filter(fn: (r) => r.indicador == \"eto_hargreaves\")\n  |> group(columns: [\"parcela\"])\n  |> last()"
+          "datasource": {"type": "influxdb", "uid": "dfmeo4l5pa0w0f"},
+          "query": "from(bucket: \"agro_iot_indicadores\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"indicadores\")\n  |> filter(fn: (r) => r.indicador == \"eto_hargreaves\")\n  |> group(columns: [\"parcela\"])\n  |> last()"
         }
       ],
       "fieldConfig": {
@@ -259,12 +259,12 @@
       "type": "timeseries",
       "id": 6,
       "title": "Temperatura del aire por parcela",
-      "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+      "datasource": {"type": "influxdb", "uid": "efmenrhxbdclcc"},
       "gridPos": {"h": 9, "w": 12, "x": 0, "y": 17},
       "targets": [
         {
           "refId": "A",
-          "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+          "datasource": {"type": "influxdb", "uid": "efmenrhxbdclcc"},
           "query": "from(bucket: \"agro_iot_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_data\")\n  |> filter(fn: (r) => r.variable == \"temperatura_aire\")\n  |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)\n  |> group(columns: [\"parcela\", \"ubicacion\"])\n  |> yield(name: \"T°\")"
         }
       ],
@@ -301,12 +301,12 @@
       "type": "timeseries",
       "id": 7,
       "title": "Humedad relativa por parcela",
-      "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+      "datasource": {"type": "influxdb", "uid": "efmenrhxbdclcc"},
       "gridPos": {"h": 9, "w": 12, "x": 12, "y": 17},
       "targets": [
         {
           "refId": "A",
-          "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+          "datasource": {"type": "influxdb", "uid": "efmenrhxbdclcc"},
           "query": "from(bucket: \"agro_iot_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_data\")\n  |> filter(fn: (r) => r.variable == \"humedad_relativa\")\n  |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)\n  |> group(columns: [\"parcela\", \"ubicacion\"])"
         }
       ],
@@ -334,13 +334,13 @@
       "type": "barchart",
       "id": 8,
       "title": "Precipitación acumulada — últimas 24 h",
-      "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
+      "datasource": {"type": "influxdb", "uid": "efmenrhxbdclcc"},
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 26},
       "targets": [
         {
           "refId": "A",
-          "datasource": {"type": "influxdb", "uid": "influxdb_raw"},
-          "query": "from(bucket: \"agro_iot_data\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"sensor_data\")\n  |> filter(fn: (r) => r.variable == \"precipitacion\")\n  |> group(columns: [\"parcela\", \"ubicacion\"])\n  |> sum()"
+          "datasource": {"type": "influxdb", "uid": "efmenrhxbdclcc"},
+          "query": "from(bucket: \"agro_iot_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor_data\")\n  |> filter(fn: (r) => r.variable == \"precipitacion\")\n  |> group(columns: [\"parcela\", \"ubicacion\"])\n  |> sum()"
         }
       ],
       "fieldConfig": {
@@ -371,12 +371,12 @@
       "type": "timeseries",
       "id": 9,
       "title": "VPD (kPa) — todas las parcelas",
-      "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+      "datasource": {"type": "influxdb", "uid": "dfmeo4l5pa0w0f"},
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 26},
       "targets": [
         {
           "refId": "A",
-          "datasource": {"type": "influxdb", "uid": "influxdb_indicadores"},
+          "datasource": {"type": "influxdb", "uid": "dfmeo4l5pa0w0f"},
           "query": "from(bucket: \"agro_iot_indicadores\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"indicadores\")\n  |> filter(fn: (r) => r.indicador == \"vpd\")\n  |> aggregateWindow(every: 10m, fn: mean, createEmpty: false)\n  |> group(columns: [\"parcela\"])"
         }
       ],
@@ -413,7 +413,7 @@
   "schemaVersion": 39,
   "tags": ["agro-icesi", "general", "overview"],
   "templating": {"list": []},
-  "time": {"from": "now-24h", "to": "now"},
+  "time": {"from": "now-7d", "to": "now"},
   "timepicker": {},
   "timezone": "America/Bogota",
   "title": "🌾 Agro ICESI — Monitoreo general",

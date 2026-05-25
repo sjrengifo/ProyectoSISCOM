@@ -70,7 +70,8 @@ except ImportError:
     sys.exit(1)
 
 try:
-    from influxdb_client import InfluxDBClient
+    from influxdb_client import InfluxDBClient, Point, WritePrecision
+    from influxdb_client.client.write_api import SYNCHRONOUS
 except ImportError:
     print("⚠ influxdb-client no instalado — pip install influxdb-client", file=sys.stderr)
     sys.exit(1)
@@ -446,8 +447,10 @@ class ServicioAlertas:
                 url=self.influx_url, token=self.influx_token, org=self.influx_org)
             health = self.client.health()
             log.info("✓ Conectado a InfluxDB %s (status: %s)", self.influx_url, health.status)
+            self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
         except Exception as e:
             log.error("✗ No se pudo conectar a InfluxDB: %s", e)
+            self.write_api = None
 
     # --- Canales destino por nivel ---
     def _canales_para_nivel(self, nivel: str) -> list[str]:
@@ -544,6 +547,24 @@ from(bucket: "{self.influx_bucket}")
             if canal:
                 canal.enviar(alerta)
         self.alertas_enviadas.append(alerta)
+        # Escribir alerta a InfluxDB para visualización en Grafana
+        if self.write_api and not self.dry_run:
+            try:
+                punto = (Point("alertas")
+                         .tag("nivel",    alerta.nivel)
+                         .tag("parcela",  alerta.parcela)
+                         .tag("cultivo",  alerta.cultivo)
+                         .tag("ubicacion", alerta.ubicacion)
+                         .field("variable", alerta.variable)
+                         .field("valor",    alerta.valor)
+                         .field("unidad",   alerta.unidad)
+                         .field("mensaje",  alerta.mensaje)
+                         .field("accion",   alerta.accion)
+                         .time(alerta.timestamp, WritePrecision.NS))
+                self.write_api.write(bucket=self.influx_bucket, record=punto)
+                log.info("✓ Alerta escrita en InfluxDB bucket=%s", self.influx_bucket)
+            except Exception as e:
+                log.error("✗ Error escribiendo alerta en InfluxDB: %s", e)
 
     def run(self, once: bool = False):
         if once:
