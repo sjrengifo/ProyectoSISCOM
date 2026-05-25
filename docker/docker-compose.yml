@@ -1,5 +1,3 @@
-version: "3.9"
-
 # =============================================================================
 # SISCOM — Stack completo con Docker Compose
 # Universidad ICESI — Sistemas y Comunicaciones I
@@ -58,13 +56,14 @@ services:
       DOCKER_INFLUXDB_INIT_BUCKET_IND: ${INFLUX_BUCKET_IND}
     volumes:
       - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
       - ./influxdb/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "influx", "ping", "--host", "http://localhost:8086"]
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 20s
+      start_period: 30s
     networks:
       - siscom-net
 
@@ -139,6 +138,7 @@ services:
         --dataset Fase2/dataset_agroclimatico_colombia.csv
         --broker mosquitto
         --duracion ${SIMULADOR_DURACION:-3600}
+        --evidencia /tmp/evidencia_publicaciones.jsonl
     volumes:
       - ..:/app:ro
     working_dir: /app
@@ -243,6 +243,8 @@ services:
 volumes:
   influxdb_data:
     name: siscom-influxdb-data
+  influxdb_config:
+    name: siscom-influxdb-config
   nodered_data:
     name: siscom-nodered-data
   grafana_data:
