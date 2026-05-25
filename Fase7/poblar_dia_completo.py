@@ -6,7 +6,7 @@ Puebla InfluxDB con datos densos (cada --intervalo minutos) para un día complet
 derivados del dataset histórico del CSV. Genera:
   - sensor_data       → bucket agro_iot_data
   - indicadores       → bucket agro_iot_indicadores
-  - alertas           → bucket agro_iot_indicadores (evaluando umbrales del YAML)
+  - alertas           → bucket agro_iot_alertas (evaluando umbrales del YAML)
   - prediccion_modelo_B → bucket agro_iot_indicadores (usando modelo joblib)
 
 Uso:
@@ -35,6 +35,7 @@ INFLUX_ORG   = os.environ.get("INFLUX_ORG",        "agricultura")
 INFLUX_TOKEN = os.environ.get("INFLUX_TOKEN",       "z5MJcpefAqdYup07U7RIo8bzKjj4gMdcKjxLFAgf-lOIFJk7PXfWdggz-vs3k97lVuF164JEErRM7JqVlzp-Hw==")
 BUCKET_RAW   = os.environ.get("INFLUX_BUCKET_RAW", "agro_iot_data")
 BUCKET_IND   = os.environ.get("INFLUX_BUCKET_IND", "agro_iot_indicadores")
+BUCKET_ALE   = os.environ.get("INFLUX_BUCKET_ALE", "agro_iot_alertas")
 
 # ── Topología de parcelas ─────────────────────────────────────
 TOPOLOGIA = {
@@ -496,7 +497,7 @@ def main():
         if len(buf_ind) >= BATCH:
             flush(buf_ind, BUCKET_IND)
         if len(buf_ale) >= 50:
-            flush(buf_ale, BUCKET_IND)
+            flush(buf_ale, BUCKET_ALE)
 
         # Progreso
         if (i + 1) % 20 == 0 or i == n_ts - 1:
@@ -506,7 +507,7 @@ def main():
 
     flush(buf_raw, BUCKET_RAW)
     flush(buf_ind, BUCKET_IND)
-    flush(buf_ale, BUCKET_IND)
+    flush(buf_ale, BUCKET_ALE)
     print()
 
     # ── Predicciones ML (cada hora) ──────────────────────────

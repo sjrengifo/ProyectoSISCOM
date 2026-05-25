@@ -1,5 +1,5 @@
 #!/bin/bash
-# InfluxDB init script — crea el segundo bucket agro_iot_indicadores
+# InfluxDB init script — crea los buckets adicionales
 # (InfluxDB ya crea agro_iot_data automáticamente via DOCKER_INFLUXDB_INIT_BUCKET)
 #
 # NOTA: durante el init, influxd corre en INFLUXD_INIT_PORT (9999 por defecto),
@@ -7,11 +7,19 @@
 
 INIT_HOST="http://localhost:${INFLUXD_INIT_PORT:-9999}"
 
-echo ">>> Creando bucket ${DOCKER_INFLUXDB_INIT_BUCKET_IND}..."
+echo ">>> Creando bucket ${DOCKER_INFLUXDB_INIT_BUCKET_IND} (indicadores, 365d)..."
 influx bucket create \
   --name "${DOCKER_INFLUXDB_INIT_BUCKET_IND}" \
   --org "${DOCKER_INFLUXDB_INIT_ORG}" \
   --retention 365d \
+  --token "${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}" \
+  --host "${INIT_HOST}" 2>/dev/null || echo ">>> Bucket ya existe, continuando."
+
+echo ">>> Creando bucket ${DOCKER_INFLUXDB_INIT_BUCKET_ALE} (alertas, 90d)..."
+influx bucket create \
+  --name "${DOCKER_INFLUXDB_INIT_BUCKET_ALE}" \
+  --org "${DOCKER_INFLUXDB_INIT_ORG}" \
+  --retention 90d \
   --token "${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}" \
   --host "${INIT_HOST}" 2>/dev/null || echo ">>> Bucket ya existe, continuando."
 

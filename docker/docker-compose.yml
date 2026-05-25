@@ -52,8 +52,9 @@ services:
       DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
       DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET_RAW}
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
-      # Variable para el script de init (crea el segundo bucket)
+      # Variables para el script de init (crea los buckets adicionales)
       DOCKER_INFLUXDB_INIT_BUCKET_IND: ${INFLUX_BUCKET_IND}
+      DOCKER_INFLUXDB_INIT_BUCKET_ALE: ${INFLUX_BUCKET_ALE}
     volumes:
       - influxdb_data:/var/lib/influxdb2
       - influxdb_config:/etc/influxdb2
@@ -190,6 +191,7 @@ services:
       INFLUX_TOKEN: ${INFLUX_TOKEN}
       INFLUX_BUCKET_RAW: ${INFLUX_BUCKET_RAW}
       INFLUX_BUCKET_IND: ${INFLUX_BUCKET_IND}
+      INFLUX_BUCKET_ALE: ${INFLUX_BUCKET_ALE}
     # Puebla los últimos 7 días (uno a la vez para no sobrecargar la memoria)
     command: >
       bash -c "
