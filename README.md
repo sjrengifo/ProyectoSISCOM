@@ -20,7 +20,7 @@ Proyecto: Plataforma IoT para monitoreo agroclimatico de parcelas de cana de azu
 | `Fase7/` | Dashboards Grafana (4 paneles interactivos) | `Fase7_Dashboard.ipynb` | `Fase7/Evidencia/` |
 | `docker/` | Entorno reproducible Docker (Windows / macOS / Linux) | — | — |
 
-**Notebook consolidado presentado en clase 25/05/26**: `Proyecto_Consolidado.ipynb` — recorre las 7 fases con todos los outputs de la sustentacion.
+**Notebook consolidado presentado en clase 25/05/26**: `Proyecto_Consolidado.ipynb` — recorre las 7 fases con todos los outputs de la sustentacion, este notebook es el que evidencia detalladamente como se cumplen los requerimientos de la rubrica.
 
 **Presentación de clase 25/05/26**: `Mosquera_Rengifo_SISCOM_IoT.pdf`
 
