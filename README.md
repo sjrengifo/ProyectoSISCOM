@@ -20,7 +20,7 @@ Proyecto: Plataforma IoT para monitoreo agroclimatico de parcelas de cana de azu
 | `Fase7/` | Dashboards Grafana (4 paneles interactivos) | `Fase7_Dashboard.ipynb` | `Fase7/Evidencia/` |
 | `docker/` | Entorno reproducible Docker (Windows / macOS / Linux) | — | — |
 
-**Notebook consolidado presentado en clase 25/05/26**: `Proyecto_Consolidado.ipynb` — recorre las 7 fases con todos los outputs guardados (sustentacion).
+**Notebook consolidado presentado en clase 25/05/26**: `Proyecto_Consolidado.ipynb` — recorre las 7 fases con todos los outputs de la sustentacion.
 
 **Presentación de clase 25/05/26**: `Mosquera_Rengifo_SISCOM_IoT.pdf`
 
@@ -85,16 +85,52 @@ Detener el simulador: `Ctrl+C`
 
 ### Servicio de alertas
 
-Evalua umbrales agronomicos cada minuto y envia notificaciones por correo, SMS y WhatsApp:
+Evalua umbrales agronomicos cada minuto y envia notificaciones por correo cuando se superan los 24 umbrales definidos en `Fase5/umbrales_agronomicos.yaml`.
+
+#### Configurar Gmail para recibir alertas
+
+El servicio usa SMTP con Gmail. Si la cuenta tiene **verificacion en 2 pasos activada** (MFA), no puede usarse la contrasena normal — Gmail la rechaza. Se necesita una **Contrasena de Aplicacion**:
+
+1. Ir a [myaccount.google.com](https://myaccount.google.com) con el correo que quieres usar
+2. `Seguridad` → `Verificacion en 2 pasos` → activar si aun no esta activa
+3. En el buscador de configuracion de la cuenta escribir **"contrasenas de aplicacion"**
+4. Seleccionar app: **Correo** / dispositivo: **Otro (nombre personalizado)** → `SISCOM`
+5. Google genera una clave de 16 caracteres (ej: `abcd efgh ijkl mnop`) — **copiarla sin espacios**
+6. Editar `docker/.env` con esas credenciales:
+
+```env
+SMTP_USER=tu_correo@gmail.com
+SMTP_PASSWORD=abcdefghijklmnop    # Contrasena de Aplicacion (16 chars, sin espacios)
+```
+
+> Si prefieres usar una cuenta Gmail nueva sin MFA, basta con activar
+> "Acceso de aplicaciones menos seguras" en la configuracion de la cuenta
+> y usar la contrasena normal. Esta opcion la tiene desactivada Google por
+> defecto desde 2022, pero se puede reactivar en cuentas sin 2FA.
+
+#### Levantar el servicio
 
 ```bash
 docker compose --profile alertas up -d alertas
 ```
 
-Ver logs:
+Ver logs en tiempo real:
 ```bash
 docker compose logs -f alertas
 ```
+
+#### Inyectar una alerta de prueba
+
+El servicio evalua umbrales sobre los **indicadores calculados por Node-RED**. Si los datos actuales no superan ningun umbral, no se genera ninguna alerta real — esto es el comportamiento correcto del sistema. Para verificar que el canal de notificaciones funciona sin esperar a que los datos lo activen, usa el siguiente comando:
+
+```bash
+docker compose run --rm alertas python /app/docker/python/test_notificacion.py
+```
+
+Esto envia un correo HTML simulando una alerta CRITICA de temperatura a la cuenta configurada en `SMTP_USER`. El correo incluye parcela, variable, valor medido, umbral superado y accion sugerida — identico al formato de una alerta real.
+
+> Para enviar la prueba a un correo diferente del remitente, agrega la variable
+> `SMTP_DEST=otro@correo.com` en `docker/.env`.
 
 ---
 
