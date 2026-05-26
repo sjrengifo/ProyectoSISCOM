@@ -1,0 +1,18 @@
+# Forzar LF en scripts de shell para evitar el error CRLF en contenedores Linux
+# cuando se clona desde Windows (donde Git convierte \n → \r\n por defecto)
+*.sh            text eol=lf
+docker-entrypoint.sh text eol=lf
+
+# Archivos de texto normales — dejar que Git los maneje según la plataforma
+*.md            text
+*.json          text
+*.yaml          text
+*.yml           text
+*.py            text
+*.js            text
+*.txt           text
+
+# Archivos binarios — no tocar
+*.joblib        binary
+*.csv           text
+*.ipynb         text

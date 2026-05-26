@@ -40,7 +40,10 @@ services:
 
   # ── Base de datos de series temporales ──────────────────────────────────────
   influxdb:
-    image: influxdb:2.7
+    build:
+      context: ./influxdb       # Dockerfile copia el init script y elimina \r (CRLF Windows)
+      dockerfile: Dockerfile
+    image: docker-influxdb:siscom
     container_name: siscom-influxdb
     restart: unless-stopped
     ports:
@@ -58,7 +61,6 @@ services:
     volumes:
       - influxdb_data:/var/lib/influxdb2
       - influxdb_config:/etc/influxdb2
-      - ./influxdb/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
       interval: 10s
