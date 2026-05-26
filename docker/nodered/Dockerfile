@@ -7,5 +7,7 @@ RUN npm install node-red-contrib-influxdb@0.7.0
 COPY flow_fase4_docker.json /data/flows.json
 COPY settings.js             /data/settings.js
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+# Eliminar \r de Windows (CRLF → LF) para que el shebang funcione en Linux
+RUN sed -i 's/\r//' /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
