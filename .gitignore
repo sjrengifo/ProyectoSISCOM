@@ -1,0 +1,18 @@
+# Credenciales y comandos locales con tokens reales
+CommandsToExecuteSISCOM.txt
+
+# Instrucciones internas para Claude Code
+CLAUDE.md
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Entornos virtuales Python
+venv/
+.venv/
+*/venv/
+*/env/
+__pycache__/
+*.pyc
+*.pyo
